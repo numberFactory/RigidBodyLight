@@ -19,7 +19,7 @@ requirements:
     - cmake >=3.19
     - make
     - python
-    - pybind11
+    - nanobind
     - eigen
     - pip
   host:
@@ -34,15 +34,16 @@ requirements:
 
 test:
   imports:
-    - RigidBody
+    - Rigid
   commands:
     - pytest
   requires:
     - pytest
-    - pandas
     - numpy
+    - scipy
   source_files:
     - tests/
+    - structures/
 
 about:
   home: https://github.com/brennansprinkle/Rigid_Body_Light
