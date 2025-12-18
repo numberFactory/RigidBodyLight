@@ -55,5 +55,5 @@ jobs:
           user: stochasticHydroTools
           overwrite: true
           upload: true
-          label: auto
+          label: main
           token: ${{ secrets.ANACONDA_TOKEN }}
