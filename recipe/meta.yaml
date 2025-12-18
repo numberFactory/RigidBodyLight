@@ -46,7 +46,7 @@ test:
     - structures/
 
 about:
-  home: https://github.com/brennansprinkle/Rigid_Body_Light
+  home: https://github.com/numberFactory/RigidBodyLight
   license_family: MIT
   license_file: LICENSE
   summary: A lightweight code for fluctuating rigid body dynamics at the Brownian scale.
