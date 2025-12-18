@@ -4,9 +4,6 @@ on:
   release:
     types: ['released', 'prereleased']
   workflow_dispatch: # used to trigger manually
-  push:
-    branches:
-      - conda
 
 jobs:
   conda_deployment_with_new_tag:
@@ -14,10 +11,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [ubuntu-latest, macos-latest]
-        # python-version: ["3.10", "3.11", "3.12", "3.13"]
-        os: [ubuntu-latest]
-        python-version: ["3.10"]
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
         with:
