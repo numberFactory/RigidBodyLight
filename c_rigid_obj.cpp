@@ -771,7 +771,8 @@ public:
       Vector U(6*N_bod);
       for(int i = 0; i < N_bod; ++i){
           b = RHS.segment<6>(6*i);
-          U.segment<6>(6*i) = N_lu[i].solve(b);
+          Vector x = N_lu[i].solve(b);
+          U.segment<6>(6*i) = x;
       }
       //elapsed = timeNow() - t;
       //printf( "Block solve time = %g\n", elapsed );
