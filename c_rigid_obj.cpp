@@ -434,6 +434,12 @@ public:
         
         r_vectors = get_r_vecs(Xin[j], Qin[j]);
         
+        if (N_blb == 1){
+            // with N_blobs = 1, K^T*K is the identity matrix
+            for (int i = 0; i < 6; ++i) {
+                tripletList_KTKi.push_back(Trip(6 * j + i, 6 * j + i, 1.0));
+            }
+        } else {
         
         // Set blocks of (K^T*K)^-1
         KTKi_block = block_KTKinv(sumr2_cfg,MOI_cfg,Qin[j]);
@@ -441,6 +447,7 @@ public:
         for(int rw = 0; rw < 6; ++rw){
             for(int cl = 0; cl < 6; ++cl){
                 tripletList_KTKi.push_back(Trip(6*j+rw, 6*j+cl, KTKi_block(rw,cl)));
+                }
             }
         }
         
