@@ -16,7 +16,7 @@ class RigidBody:
 
     def __init__(
         self,
-        rigid_config,
+        rigid_config: vector,
         X: vector,
         Q: vector,
         a: float,
@@ -30,11 +30,11 @@ class RigidBody:
 
         kbt = 1.0  # TODO temp, do we need kbt in c_rigid at all?
 
-        if rigid_config.size % 3 != 0:
+        if np.size(rigid_config) % 3 != 0:
             raise RuntimeError(
-                f"Rigid config must have length 3N. Rigid config shape: {rigid_config.shape}"
+                f"Rigid config must have length 3N. Rigid config shape: {np.shape(rigid_config)}"
             )
-        self.blobs_per_body = rigid_config.size // 3
+        self.blobs_per_body = np.size(rigid_config) // 3
 
         self.cb.setParameters(a, dt, kbt, eta, rigid_config)
         self.cb.setBlkPC(block_PC)
@@ -78,7 +78,7 @@ class RigidBody:
         self.__check_input_size(system_input=b)
         return self.cb.apply_PC(np.array(b))
 
-    def apply_saddle(self, x):
+    def apply_saddle(self, x: vector) -> np.ndarray:
         self.__check_input_size(system_input=x)
         lambda_vec = x[: 3 * self.total_blobs]
         U = x[3 * self.total_blobs :]
