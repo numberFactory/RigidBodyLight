@@ -146,8 +146,7 @@ def test_get_K_Kinv():
     ((False, False), (True, False), (False, True), (True, True)),
 )
 @pytest.mark.parametrize("vector_type", (list, np.array))
-@pytest.mark.parametrize("flat_inputs", [False, True])
-def test_apply_PC(block_PC, wall_PC, vector_type, flat_inputs):
+def test_apply_PC(block_PC, wall_PC, vector_type):
     N_rigid = 3
     X, Q = utils.create_random_positions(N_rigid, wall_PC=wall_PC)
     _, config = utils.load_config(utils.struct_shell_12)
@@ -158,14 +157,17 @@ def test_apply_PC(block_PC, wall_PC, vector_type, flat_inputs):
 
     size = 3 * blobs_per_body * N_rigid + 6 * N_rigid
     b = np.random.randn(size)
-    PC = cb.apply_PC(b)
+    PC = cb.apply_PC(vector_type(b))
 
     assert PC.shape == (size,)
     assert np.linalg.norm(PC) > 0.0
 
     with pytest.raises(RuntimeError):
         b_bad_size = np.random.randn(size - 4)
-        cb.apply_PC(b_bad_size)
+        cb.apply_PC(vector_type(b_bad_size))
+    with pytest.raises(RuntimeError):
+        b_bad_shape = np.random.randn(size).reshape(-1, 3)
+        cb.apply_PC(vector_type(b_bad_shape))
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))
@@ -210,7 +212,8 @@ def test_apply_M(vector_type, flat_inputs):
     assert np.linalg.norm(result_long) > 0.0
 
 
-def test_apply_saddle():
+@pytest.mark.parametrize("vector_type", (list, np.array))
+def test_apply_saddle(vector_type):
     N_rigid = 2
     X, Q = utils.create_random_positions(N_rigid)
     _, config = utils.load_config(utils.struct_shell_12)
@@ -227,6 +230,10 @@ def test_apply_saddle():
     x_bad_size = np.random.randn(size - 2)
     with pytest.raises(RuntimeError):
         cb.apply_saddle(x_bad_size)
+
+    x_bad_shape = np.random.randn(size).reshape(-1, 3)
+    with pytest.raises(RuntimeError):
+        cb.apply_saddle(vector_type(x_bad_shape))
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))

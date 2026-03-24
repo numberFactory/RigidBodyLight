@@ -76,7 +76,7 @@ class RigidBody:
 
     def apply_PC(self, b: vector) -> np.ndarray:
         self.__check_input_size(system_input=b)
-        return self.cb.apply_PC(b)
+        return self.cb.apply_PC(np.array(b))
 
     def apply_saddle(self, x):
         self.__check_input_size(system_input=x)
@@ -149,3 +149,5 @@ class RigidBody:
                 raise RuntimeError(
                     f"Rigid system input vector must have total size 3*N_blobs + 6*N_bodies = {expected_size}. system_input shape: {np.shape(system_input)}"
                 )
+            if np.ndim(system_input) != 1:
+                raise RuntimeError("Rigid system input vector must be 1D")
