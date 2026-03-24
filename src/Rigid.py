@@ -1,8 +1,10 @@
 from Rigid import c_rigid as crigid
 import numpy as np
 from typing import TypeAlias
+import scipy.sparse as sp
 
 vector: TypeAlias = list | np.ndarray
+sparse_m: TypeAlias = sp.csc_matrix
 """Rigid body interface for Python.
 
 Dev notes:
@@ -13,6 +15,8 @@ Dev notes:
 class RigidBody:
     X_shape: tuple[int, ...]
     Q_shape: tuple[int, ...]
+    K: sparse_m
+    K_inv: sparse_m
 
     def __init__(
         self,
@@ -22,6 +26,7 @@ class RigidBody:
         a: float,
         eta: float,
         dt: float,
+        fixed_config: vector | None = None,
         wall_PC=False,
         block_PC=False,
     ):
@@ -30,11 +35,10 @@ class RigidBody:
 
         kbt = 1.0  # TODO temp, do we need kbt in c_rigid at all?
 
-        if np.size(rigid_config) % 3 != 0:
-            raise RuntimeError(
-                f"Rigid config must have length 3N. Rigid config shape: {np.shape(rigid_config)}"
-            )
+        self.__check_configs(rigid_config, fixed_config)
+
         self.blobs_per_body = np.size(rigid_config) // 3
+        self.fixed_blobs = 0 if fixed_config is None else np.size(fixed_config) // 3
 
         self.cb.setParameters(a, dt, kbt, eta, rigid_config)
         self.cb.setBlkPC(block_PC)
@@ -56,7 +60,9 @@ class RigidBody:
         self.cb.setConfig(X, Q)
         self.cb.set_K_mats()
 
-        self.total_blobs = self.N_bodies * self.blobs_per_body
+        self.__construct_K_mats()
+
+        self.total_blobs = self.N_bodies * self.blobs_per_body + self.fixed_blobs
 
     def get_blob_positions(self) -> np.ndarray:
         shape = (-1, 3) if len(self.X_shape) == 2 else (-1)
@@ -64,15 +70,15 @@ class RigidBody:
 
     def K_dot(self, U: vector) -> np.ndarray:
         self.__check_input_size(U_vec=U)
-        result = self.cb.K_x_U(np.array(U).ravel())
+        result = self.K.dot(np.array(U).ravel())
         shape = (-1, 3) if np.ndim(U) == 2 else (-1)
-        return result.reshape(shape)
+        return np.array(result).reshape(shape)
 
     def KT_dot(self, lambda_vec: vector) -> np.ndarray:
         self.__check_input_size(lambda_vec=lambda_vec)
-        result = self.cb.KT_x_Lam(np.array(lambda_vec).ravel())
+        result = self.K_inv.dot(np.array(lambda_vec).ravel())
         shape = (-1, 3) if np.ndim(lambda_vec) == 2 else (-1)
-        return result.reshape(shape)
+        return np.array(result).reshape(shape)
 
     def apply_PC(self, b: vector) -> np.ndarray:
         self.__check_input_size(system_input=b)
@@ -97,15 +103,37 @@ class RigidBody:
 
         return self.cb.apply_M(np.reshape(forces, (-1)), np.reshape(positions, (-1)))
 
-    def get_K(self) -> np.ndarray:
-        return self.cb.get_K()
+    def get_K(self) -> sparse_m:
+        return self.K
 
-    def get_Kinv(self) -> np.ndarray:
-        return self.cb.get_Kinv()
+    def get_Kinv(self) -> sparse_m:
+        return self.K_inv
 
     def evolve_rigid_bodies(self, U: vector) -> None:
         self.__check_input_size(U_vec=U)
         self.cb.evolve_X_Q(np.array(U).ravel())
+
+    def __construct_K_mats(self):
+        self.K = self.cb.get_K()
+        self.K_inv = self.cb.get_Kinv()
+
+        if self.fixed_blobs > 0:
+            padded_shape = (3 * self.total_blobs, 6 * self.N_bodies)
+            self.K = sp.csc_matrix(self.K, shape=padded_shape)
+            self.K_inv = sp.csc_matrix(self.K_inv, shape=padded_shape)
+
+    def __check_configs(
+        self, rigid_config: vector, fixed_config: vector | None
+    ) -> None:
+        if np.size(rigid_config) % 3 != 0:
+            raise RuntimeError(
+                f"Rigid config must have length 3N. Rigid config size: {np.size(rigid_config)}"
+            )
+        if fixed_config is not None:
+            if np.size(fixed_config) % 3 != 0:
+                raise RuntimeError(
+                    f"Fixed config must have length 3N. Fixed config size: {np.size(fixed_config)}"
+                )
 
     def __check_and_set_configs(self, X: vector, Q: vector) -> None:
         x_size = np.prod(np.shape(X))
