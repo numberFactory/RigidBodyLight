@@ -12,3 +12,5 @@ dependencies:
   - eigen
   - pytest
   - cmake
+  # development dependencies
+  - clangdev
