@@ -79,6 +79,57 @@ def test_blob_positions():
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))
+@pytest.mark.parametrize("flat_inputs", [True, False])
+# @pytest.mark.parametrize("include_fixed", [True, False])
+@pytest.mark.parametrize("include_fixed", [False])
+def test_all(vector_type, flat_inputs, include_fixed):
+    N_rigid = 3
+    X, Q = utils.create_random_positions(N_rigid)
+    _, config = utils.load_config(utils.struct_shell_12)
+    fixed_config = np.random.randn(3, 3) if include_fixed else None
+    cb = utils.create_solver(rigid_config=config, X=X, Q=Q, fixed_config=fixed_config)
+    blobs_per_body = config.shape[0]
+
+    # TODO: include apply_M. evolve probably stays stand-alone since it has no direct outputs
+    # TODO: also need to modify this for include_fixed=True
+    funcs_to_input = {
+        cb.K_dot: {"input_type": "body", "output_type": "blob"},
+        cb.KT_dot: {"input_type": "blob", "output_type": "body"},
+        cb.apply_PC: {"input_type": "system", "output_type": "system"},
+        cb.apply_saddle: {"input_type": "system", "output_type": "system"},
+        # cb.apply_M: {"input_type": "blob", "output_type": "blob"},
+        # cb.evolve_rigid_bodies: {"input_type": "body", "output_type": "body"},
+    }
+    type_mapping = {
+        "body": 6 * N_rigid,
+        "blob": 3 * blobs_per_body * N_rigid,
+        "system": 3 * blobs_per_body * N_rigid + 6 * N_rigid,
+    }
+    for func, types in funcs_to_input.items():
+        in_size = type_mapping[types["input_type"]]
+        out_size = type_mapping[types["output_type"]]
+
+        input_vec = np.random.randn(in_size)
+        if flat_inputs and types["input_type"] != "system":
+            if types["input_type"] == "body":
+                input_vec = np.reshape(input_vec, (-1, 6))
+                out_shape = (blobs_per_body * N_rigid, 3)
+            elif types["input_type"] == "blob":
+                input_vec = np.reshape(input_vec, (-1, 3))
+                out_shape = (2 * N_rigid, 3)
+        else:
+            out_shape = (out_size,)
+
+        result = func(vector_type(input_vec))
+        msg = "func: {}, expected output shape: {}, got shape: {}".format(
+            func.__name__, out_shape, np.shape(result)
+        )
+        assert np.shape(result) == out_shape, msg
+        assert np.linalg.norm(result) > 0.0
+    pass
+
+
+@pytest.mark.parametrize("vector_type", (list, np.array))
 @pytest.mark.parametrize("flat_inputs", [False, True])
 def test_K_dot(vector_type, flat_inputs):
     N_rigid = 3

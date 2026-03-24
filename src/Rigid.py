@@ -60,9 +60,8 @@ class RigidBody:
         self.cb.setConfig(X, Q)
         self.cb.set_K_mats()
 
-        self.__construct_K_mats()
-
         self.total_blobs = self.N_bodies * self.blobs_per_body + self.fixed_blobs
+        self.__construct_K_mats()
 
     def get_blob_positions(self) -> np.ndarray:
         shape = (-1, 3) if len(self.X_shape) == 2 else (-1)
@@ -119,8 +118,10 @@ class RigidBody:
 
         if self.fixed_blobs > 0:
             padded_shape = (3 * self.total_blobs, 6 * self.N_bodies)
-            self.K = sp.csc_matrix(self.K, shape=padded_shape)
-            self.K_inv = sp.csc_matrix(self.K_inv, shape=padded_shape)
+            self.K.resize(padded_shape)
+            self.K_inv.resize(padded_shape)
+            # self.K = sp.csc_matrix(self.K, shape=padded_shape)
+            # self.K_inv = sp.csc_matrix(self.K_inv, shape=padded_shape)
 
     def __check_configs(
         self, rigid_config: vector, fixed_config: vector | None
