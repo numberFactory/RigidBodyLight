@@ -78,21 +78,31 @@ def test_blob_positions():
     assert np.allclose(pos, ref_pos, atol=1e-5)
 
 
+@pytest.mark.parametrize(
+    ("block_PC", "wall_PC"),
+    ((False, False), (True, False), (False, True), (True, True)),
+)
 @pytest.mark.parametrize("vector_type", (list, np.array))
 @pytest.mark.parametrize("flat_inputs", [True, False])
 # @pytest.mark.parametrize("include_fixed", [True, False])
 @pytest.mark.parametrize("include_fixed", [False])
-def test_all(vector_type, flat_inputs, include_fixed):
+def test_all(block_PC, wall_PC, vector_type, flat_inputs, include_fixed):
     N_rigid = 3
-    X, Q = utils.create_random_positions(N_rigid)
+    X, Q = utils.create_random_positions(N_rigid, wall_PC=wall_PC)
     _, config = utils.load_config(utils.struct_shell_12)
     fixed_config = np.random.randn(3, 3) if include_fixed else None
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q, fixed_config=fixed_config)
+    cb = utils.create_solver(
+        rigid_config=config,
+        X=X,
+        Q=Q,
+        fixed_config=fixed_config,
+        block_PC=block_PC,
+        wall_PC=wall_PC,
+    )
     blobs_per_body = config.shape[0]
 
-    # TODO: include evolve?
     # TODO: also need to modify this for include_fixed=True
-    blob_vec = np.random.randn(3 * blobs_per_body * N_rigid)
+    blob_vec = cb.get_blob_positions().flatten()
     M_pos = lambda pos: cb.apply_M(blob_vec, pos)
     M_force = lambda force: cb.apply_M(force, blob_vec)
 
@@ -103,7 +113,6 @@ def test_all(vector_type, flat_inputs, include_fixed):
         cb.apply_saddle: {"input_type": "system", "output_type": "system"},
         M_pos: {"input_type": "blob", "output_type": "blob"},
         M_force: {"input_type": "blob", "output_type": "blob"},
-        # cb.evolve_rigid_bodies: {"input_type": "body", "output_type": "body"},
     }
     type_mapping = {
         "body": 6 * N_rigid,
@@ -114,7 +123,7 @@ def test_all(vector_type, flat_inputs, include_fixed):
         in_size = type_mapping[types["input_type"]]
         out_size = type_mapping[types["output_type"]]
 
-        input_vec = np.random.randn(in_size)
+        input_vec = np.random.uniform(1, 10, in_size)
         if not flat_inputs:
             if types["input_type"] != "system":
                 input_vec = np.reshape(input_vec, (-1, 3))
@@ -133,55 +142,9 @@ def test_all(vector_type, flat_inputs, include_fixed):
         assert np.shape(result) == out_shape, fail_msg
         assert np.linalg.norm(result) > 0.0
 
-
-@pytest.mark.parametrize("vector_type", (list, np.array))
-@pytest.mark.parametrize("flat_inputs", [False, True])
-def test_K_dot(vector_type, flat_inputs):
-    N_rigid = 3
-    X, Q = utils.create_random_positions(N_rigid)
-    _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
-    blobs_per_body = config.shape[0]
-
-    U_bad_size = vector_type(np.random.randn(6 * N_rigid - 3))
-    with pytest.raises(RuntimeError):
-        cb.K_dot(U_bad_size)
-
-    U_vec = np.random.randn(6 * N_rigid)
-    if flat_inputs:
-        out_shape = (3 * blobs_per_body * N_rigid,)
-    else:
-        U_vec = np.reshape(U_vec, (-1, 6))
-        out_shape = (blobs_per_body * N_rigid, 3)
-
-    result = cb.K_dot(vector_type(U_vec))
-    assert result.shape == out_shape
-    assert np.linalg.norm(result) > 0.0
-
-
-@pytest.mark.parametrize("vector_type", (list, np.array))
-@pytest.mark.parametrize("flat_inputs", [False, True])
-def test_KT_dot(vector_type, flat_inputs):
-    N_rigid = 3
-    X, Q = utils.create_random_positions(N_rigid)
-    _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
-    blobs_per_body = config.shape[0]
-
-    lambda_bad_size = vector_type(np.random.randn(3 * blobs_per_body * N_rigid - 5))
-    with pytest.raises(RuntimeError):
-        cb.KT_dot(lambda_bad_size)
-
-    lambda_vec = np.random.randn(3 * blobs_per_body * N_rigid)
-    if flat_inputs:
-        out_shape = (6 * N_rigid,)
-    else:
-        lambda_vec = np.reshape(lambda_vec, (-1, 3))
-        out_shape = (2 * N_rigid, 3)
-    result = cb.KT_dot(vector_type(lambda_vec))
-    print("result shape:", (result.shape), "lambda_vec shape:", np.shape(lambda_vec))
-    assert result.shape == out_shape
-    assert np.linalg.norm(result) > 0.0
+        input_bad = input_vec[:-2]
+        with pytest.raises(RuntimeError):
+            func(vector_type(input_bad))
 
 
 def test_get_K_Kinv():
