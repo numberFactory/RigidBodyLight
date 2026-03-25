@@ -4,6 +4,8 @@ import os
 
 struct_dir = os.path.dirname(os.path.abspath(__file__)) + "/../structures/"
 struct_shell_12 = struct_dir + "shell_N_12.csv"
+struct_shell_162 = struct_dir + "shell_N_162.csv"
+struct_shell_642 = struct_dir + "shell_N_642.csv"
 
 
 def load_config(file_name):
