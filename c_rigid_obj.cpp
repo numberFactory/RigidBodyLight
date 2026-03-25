@@ -216,7 +216,7 @@ public:
   
   void removeMean(Matrix& Cfg){
       Vector mean = Cfg.colwise().mean();
-      std::cout << "Old mean: " << mean.transpose() << "\n";
+    //   std::cout << "Old mean: " << mean.transpose() << "\n";
       for (int i = 0; i < Cfg.rows(); ++i){
         Cfg.row(i) = Cfg.row(i) - mean.transpose();
       }
@@ -232,7 +232,7 @@ public:
     this->Lp = Lp;
     removeMean(Cfg);
     
-    std::cout << "New mean of Ref Config canged to: " << (Cfg.colwise().mean()).transpose() << "\n";
+    // std::cout << "New mean of Ref Config canged to: " << (Cfg.colwise().mean()).transpose() << "\n";
     
     this->Ref_Cfg = Cfg;
     this->N_blb = Ref_Cfg.rows();
@@ -693,7 +693,7 @@ public:
   
   
   SparseM PC_invM(){
-      std::cout << "Making PC mats\n";
+    //   std::cout << "Making PC mats\n";
       if(!block_diag_PC){
         std::vector<real> r_vectors = multi_body_pos();
         return diag_invM(r_vectors);
@@ -750,7 +750,7 @@ public:
       if( not PC_mat_Set){
         invM = PC_invM();
         Ninv = (KT*invM*K).pruned();
-        N_lu = get_blk_diag_lu(Ninv);
+        N_lu = get_blk_diag_lu(Ninv); // type std::vector<Eigen::LLT<Matrix>>
         PC_mat_Set = true;
       }
       
@@ -1149,7 +1149,7 @@ public:
         Xs = Xnext;
         
         set_K_mats();
-        PC_mat_Set = true;
+        PC_mat_Set = true; // why is this here? set_K_mats doesn't set the PC mat
     }
 
 
@@ -1194,7 +1194,7 @@ public:
             t = timeNow();
             Vector M_half_W1 = M_half_W();
             elapsed = timeNow() - t;
-            printf( "Root time = %g\n", elapsed );
+            // printf( "Root time = %g\n", elapsed );
             Vector M_half_W2;
             if(split_rand){
                 M_half_W2 = M_half_W();
@@ -1204,9 +1204,9 @@ public:
             //std::cout << "M*w1: " << M_half_W2.segment<3>(0) << "\n";
             
             // Make M_RFD
-            std::cout << "Before RFD\n";
+            // std::cout << "Before RFD\n";
             M_RFD_vec = M_RFD();
-            std::cout << "After RFD\n";
+            // std::cout << "After RFD\n";
                     
             // Set predictor velocity
             double c_1, c_2;
@@ -1237,7 +1237,7 @@ public:
         }
         else{
             // print that we are not using Brownian motion
-            std::cout << "No Brownian terms\n";
+            // std::cout << "No Brownian terms\n";
         }
         
 

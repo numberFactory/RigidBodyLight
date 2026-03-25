@@ -5,3 +5,4 @@ build/*
 compile_commands.json
 *.egg-info/
 slurm/*
+job-build.sh
