@@ -90,14 +90,19 @@ def test_all(vector_type, flat_inputs, include_fixed):
     cb = utils.create_solver(rigid_config=config, X=X, Q=Q, fixed_config=fixed_config)
     blobs_per_body = config.shape[0]
 
-    # TODO: include apply_M. evolve probably stays stand-alone since it has no direct outputs
+    # TODO: include evolve?
     # TODO: also need to modify this for include_fixed=True
+    blob_vec = np.random.randn(3 * blobs_per_body * N_rigid)
+    M_pos = lambda pos: cb.apply_M(blob_vec, pos)
+    M_force = lambda force: cb.apply_M(force, blob_vec)
+
     funcs_to_input = {
         cb.K_dot: {"input_type": "body", "output_type": "blob"},
         cb.KT_dot: {"input_type": "blob", "output_type": "body"},
         cb.apply_PC: {"input_type": "system", "output_type": "system"},
         cb.apply_saddle: {"input_type": "system", "output_type": "system"},
-        # cb.apply_M: {"input_type": "blob", "output_type": "blob"},
+        M_pos: {"input_type": "blob", "output_type": "blob"},
+        M_force: {"input_type": "blob", "output_type": "blob"},
         # cb.evolve_rigid_bodies: {"input_type": "body", "output_type": "body"},
     }
     type_mapping = {
@@ -110,23 +115,23 @@ def test_all(vector_type, flat_inputs, include_fixed):
         out_size = type_mapping[types["output_type"]]
 
         input_vec = np.random.randn(in_size)
-        if flat_inputs and types["input_type"] != "system":
-            if types["input_type"] == "body":
-                input_vec = np.reshape(input_vec, (-1, 6))
-                out_shape = (blobs_per_body * N_rigid, 3)
-            elif types["input_type"] == "blob":
+        if not flat_inputs:
+            if types["input_type"] != "system":
                 input_vec = np.reshape(input_vec, (-1, 3))
-                out_shape = (2 * N_rigid, 3)
+            if types["output_type"] != "system":
+                out_shape = (out_size // 3, 3)
+            else:
+                out_shape = (out_size,)
         else:
             out_shape = (out_size,)
+        blob_vec = np.reshape(blob_vec, (-1, 3)) if not flat_inputs else blob_vec
 
         result = func(vector_type(input_vec))
-        msg = "func: {}, expected output shape: {}, got shape: {}".format(
+        fail_msg = "func: {}, expected output shape: {}, got shape: {}".format(
             func.__name__, out_shape, np.shape(result)
         )
-        assert np.shape(result) == out_shape, msg
+        assert np.shape(result) == out_shape, fail_msg
         assert np.linalg.norm(result) > 0.0
-    pass
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))
