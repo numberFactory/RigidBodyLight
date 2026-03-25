@@ -62,18 +62,21 @@ def test_blob_positions():
     X, Q = utils.create_random_positions(N)
     _, config = utils.load_config(utils.struct_shell_12)
     blobs_per_body = config.shape[0]
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
+    n_fixed = 3
+    fixed_config = np.random.uniform(0, 1, (n_fixed, 3))
+    cb = utils.create_solver(rigid_config=config, X=X, Q=Q, fixed_config=fixed_config)
 
-    N_blobs = N * blobs_per_body
+    n_blobs = N * blobs_per_body + n_fixed
     pos = cb.get_blob_positions()
-    assert pos.shape == (N_blobs, 3)
+    assert pos.shape == (n_blobs, 3)
 
-    ref_pos = np.zeros((N_blobs, 3))
+    ref_pos = np.zeros((n_blobs, 3))
     for i in range(N):
         x_i = X[i, :]
         r_i = Rotation.from_quat(Q[i, :], scalar_first=True)
         pos_i = r_i.apply(config.copy()) + x_i
         ref_pos[i * blobs_per_body : (i + 1) * blobs_per_body, :] = pos_i
+    ref_pos[N * blobs_per_body :, :] = fixed_config
 
     assert np.allclose(pos, ref_pos, atol=1e-5)
 
@@ -84,13 +87,13 @@ def test_blob_positions():
 )
 @pytest.mark.parametrize("vector_type", (list, np.array))
 @pytest.mark.parametrize("flat_inputs", [True, False])
-# @pytest.mark.parametrize("include_fixed", [True, False])
-@pytest.mark.parametrize("include_fixed", [False])
-def test_all(block_PC, wall_PC, vector_type, flat_inputs, include_fixed):
+@pytest.mark.parametrize("include_fixed", [True, False])
+def test_operator_shapes(block_PC, wall_PC, vector_type, flat_inputs, include_fixed):
     N_rigid = 3
     X, Q = utils.create_random_positions(N_rigid, wall_PC=wall_PC)
     _, config = utils.load_config(utils.struct_shell_12)
-    fixed_config = np.random.randn(3, 3) if include_fixed else None
+    n_fixed = 3 if include_fixed else 0
+    fixed_config = np.random.uniform(0, 1, (n_fixed, 3)) if include_fixed else None
     cb = utils.create_solver(
         rigid_config=config,
         X=X,
@@ -101,8 +104,7 @@ def test_all(block_PC, wall_PC, vector_type, flat_inputs, include_fixed):
     )
     blobs_per_body = config.shape[0]
 
-    # TODO: also need to modify this for include_fixed=True
-    blob_vec = cb.get_blob_positions().flatten()
+    blob_vec = np.random.uniform(1, 10, 3 * (blobs_per_body * N_rigid + n_fixed))
     M_pos = lambda pos: cb.apply_M(blob_vec, pos)
     M_force = lambda force: cb.apply_M(force, blob_vec)
 
@@ -116,8 +118,8 @@ def test_all(block_PC, wall_PC, vector_type, flat_inputs, include_fixed):
     }
     type_mapping = {
         "body": 6 * N_rigid,
-        "blob": 3 * blobs_per_body * N_rigid,
-        "system": 3 * blobs_per_body * N_rigid + 6 * N_rigid,
+        "blob": 3 * (blobs_per_body * N_rigid + n_fixed),
+        "system": 3 * (blobs_per_body * N_rigid + n_fixed) + 6 * N_rigid,
     }
     for func, types in funcs_to_input.items():
         in_size = type_mapping[types["input_type"]]
@@ -160,35 +162,6 @@ def test_get_K_Kinv():
     assert np.sum(np.abs(K_inv)) > 0.0
 
 
-@pytest.mark.parametrize(
-    ("block_PC", "wall_PC"),
-    ((False, False), (True, False), (False, True), (True, True)),
-)
-@pytest.mark.parametrize("vector_type", (list, np.array))
-def test_apply_PC(block_PC, wall_PC, vector_type):
-    N_rigid = 3
-    X, Q = utils.create_random_positions(N_rigid, wall_PC=wall_PC)
-    _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(
-        rigid_config=config, X=X, Q=Q, block_PC=block_PC, wall_PC=wall_PC
-    )
-    blobs_per_body = config.shape[0]
-
-    size = 3 * blobs_per_body * N_rigid + 6 * N_rigid
-    b = np.random.randn(size)
-    PC = cb.apply_PC(vector_type(b))
-
-    assert PC.shape == (size,)
-    assert np.linalg.norm(PC) > 0.0
-
-    with pytest.raises(RuntimeError):
-        b_bad_size = np.random.randn(size - 4)
-        cb.apply_PC(vector_type(b_bad_size))
-    with pytest.raises(RuntimeError):
-        b_bad_shape = np.random.randn(size).reshape(-1, 3)
-        cb.apply_PC(vector_type(b_bad_shape))
-
-
 @pytest.mark.parametrize("vector_type", (list, np.array))
 @pytest.mark.parametrize("flat_inputs", [False, True])
 def test_apply_M(vector_type, flat_inputs):
@@ -218,41 +191,26 @@ def test_apply_M(vector_type, flat_inputs):
         pos = np.reshape(pos, (-1, 3))
     print(type(F))
     result = cb.apply_M(vector_type(F), vector_type(pos))
-    shape = (3 * blobs_per_body * N_rigid,)
+    shape = (
+        (3 * blobs_per_body * N_rigid,)
+        if flat_inputs
+        else (blobs_per_body * N_rigid, 3)
+    )
     assert result.shape == shape
     assert np.linalg.norm(result) > 0.0
 
     # check that we can also apply to a longer vector (e.g., if we have extra blobs)
-    F = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3))
-    pos = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3))
+    shape = (
+        (3 * blobs_per_body * N_rigid + 3,)
+        if flat_inputs
+        else ((blobs_per_body * N_rigid + 1), 3)
+    )
+    F = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3).reshape(shape))
+    pos = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3).reshape(shape))
     result_long = cb.apply_M(F, pos)
-    shape = (3 * blobs_per_body * N_rigid + 3,)
+
     assert result_long.shape == shape
     assert np.linalg.norm(result_long) > 0.0
-
-
-@pytest.mark.parametrize("vector_type", (list, np.array))
-def test_apply_saddle(vector_type):
-    N_rigid = 2
-    X, Q = utils.create_random_positions(N_rigid)
-    _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
-    blobs_per_body = config.shape[0]
-
-    size = 3 * blobs_per_body * N_rigid + 6 * N_rigid
-    x = np.random.randn(size)
-
-    out = cb.apply_saddle(x)
-    assert out.shape == (size,)
-    assert np.linalg.norm(out) > 0.0
-
-    x_bad_size = np.random.randn(size - 2)
-    with pytest.raises(RuntimeError):
-        cb.apply_saddle(x_bad_size)
-
-    x_bad_shape = np.random.randn(size).reshape(-1, 3)
-    with pytest.raises(RuntimeError):
-        cb.apply_saddle(vector_type(x_bad_shape))
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))
