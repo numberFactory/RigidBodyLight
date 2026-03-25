@@ -69,13 +69,13 @@ class RigidBody:
         return np.array(self.cb.multi_body_pos()).reshape(shape)
 
     def K_dot(self, U: vector) -> np.ndarray:
-        self.__check_input_size(U_vec=U)
+        self.__check_input_size(body_input=U)
         result = self.K.dot(np.array(U).ravel())
         shape = (-1, 3) if np.ndim(U) == 2 else (-1)
         return np.array(result).reshape(shape)
 
     def KT_dot(self, lambda_vec: vector) -> np.ndarray:
-        self.__check_input_size(lambda_vec=lambda_vec)
+        self.__check_input_size(blob_input=lambda_vec)
         result = self.K_inv.dot(np.array(lambda_vec).ravel())
         shape = (-1, 3) if np.ndim(lambda_vec) == 2 else (-1)
         return np.array(result).reshape(shape)
@@ -98,8 +98,9 @@ class RigidBody:
     def apply_M(self, forces: vector, positions: vector) -> np.ndarray:
         if np.size(positions) != np.size(forces):
             raise RuntimeError("Positions and forces must be of the same size")
-        if np.size(forces) % 3 != 0 or np.size(positions) % 3 != 0:
-            raise RuntimeError("Forces and positions must have total size 3*N_blobs")
+        self.__check_input_size(blob_input=forces)
+        self.__check_input_size(blob_input=positions)
+        shape = (-1, 3) if np.ndim(forces) == 2 and np.ndim(positions) == 2 else (-1)
 
         positions = np.array(positions).ravel()
         if self.using_wall and np.any(positions[2::3] <= 0):
@@ -107,7 +108,7 @@ class RigidBody:
                 "Particle detected at or below wall (z <= 0) in apply_M. Either remove the wall or ensure all particles are above the wall."
             )
 
-        return self.cb.apply_M(np.reshape(forces, (-1)), np.reshape(positions, (-1)))
+        return self.cb.apply_M(np.reshape(forces, (-1)), positions).reshape(shape)
 
     def get_K(self) -> sparse_m:
         return self.K
@@ -116,7 +117,7 @@ class RigidBody:
         return self.K_inv
 
     def evolve_rigid_bodies(self, U: vector) -> None:
-        self.__check_input_size(U_vec=U)
+        self.__check_input_size(body_input=U)
         self.cb.evolve_X_Q(np.array(U).ravel())
 
     def __construct_K_mats(self):
@@ -164,19 +165,19 @@ class RigidBody:
 
     def __check_input_size(
         self,
-        lambda_vec: vector | None = None,
-        U_vec: vector | None = None,
+        blob_input: vector | None = None,
+        body_input: vector | None = None,
         system_input: vector | None = None,
     ):
-        if lambda_vec is not None:
-            if np.size(lambda_vec) != 3 * self.total_blobs:
+        if blob_input is not None:
+            if np.size(blob_input) != 3 * self.total_blobs:
                 raise RuntimeError(
-                    f"lambda must have total size 3*N_blobs = {3 * self.total_blobs}. lambda_vec shape: {np.shape(lambda_vec)}"
+                    f"lambda must have total size 3*N_blobs = {3 * self.total_blobs}. lambda_vec shape: {np.shape(blob_input)}"
                 )
-        if U_vec is not None:
-            if np.size(U_vec) != 6 * self.N_bodies:
+        if body_input is not None:
+            if np.size(body_input) != 6 * self.N_bodies:
                 raise RuntimeError(
-                    f"U must have total size 6*N_bodies = {6*self.N_bodies}. U shape: {np.shape(U_vec)}"
+                    f"U must have total size 6*N_bodies = {6*self.N_bodies}. U shape: {np.shape(body_input)}"
                 )
 
         if system_input is not None:
