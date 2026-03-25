@@ -2,6 +2,7 @@ from Rigid import c_rigid as crigid
 import numpy as np
 from typing import TypeAlias
 import scipy.sparse as sp
+from sksparse.cholmod import cholesky
 
 vector: TypeAlias = list | np.ndarray
 sparse_m: TypeAlias = sp.csc_matrix
@@ -34,6 +35,8 @@ class RigidBody:
         self.precision = self.cb.precision
 
         kbt = 1.0  # TODO temp, do we need kbt in c_rigid at all?
+        self.eta = eta
+        self.a = a
 
         self.__check_configs(rigid_config, fixed_config)
         self.fixed_config = (
@@ -46,6 +49,7 @@ class RigidBody:
         self.cb.setParameters(a, dt, kbt, eta, rigid_config)
         self.cb.setBlkPC(block_PC)
         self.cb.setWallPC(wall_PC)
+        self.PC = None
 
         self.set_config(X, Q)
 
@@ -87,17 +91,31 @@ class RigidBody:
 
     def apply_PC(self, b: vector) -> np.ndarray:
         self.__check_input_size(system_input=b)
-        if self.n_fixed > 0:
-            slice_ind = 3 * self.total_blobs - 3 * self.n_fixed
-            b = np.concatenate((b[0:slice_ind], b[3 * self.total_blobs :]))
-        # TODO this is wrong for fixed blobs
-        out = self.cb.apply_PC(np.array(b))
-
-        if self.n_fixed > 0:
-            out = np.concatenate(
-                (out[0:slice_ind], np.zeros(3 * self.n_fixed), out[slice_ind:])
-            )
+        # note: currently a fixed config ignores wall_PC and block_PC
+        if self.fixed_config is not None:
+            out = self.apply_PC_diag(b)
+        else:
+            out = self.cb.apply_PC(np.array(b))
         return out
+
+    def apply_PC_diag(self, b: vector) -> np.ndarray:
+        self.__check_input_size(system_input=b)
+        if self.PC is None:
+            self.build_block_PC()
+
+        test = self.PC.solve_A(np.array(b).ravel())
+        return test.astype(self.precision)
+
+    def build_block_PC(self):
+        K = self.get_K()
+        M0 = sp.diags(
+            [1 / (6 * np.pi * self.eta * self.a)] * 3 * self.total_blobs,
+            shape=(3 * self.total_blobs, 3 * self.total_blobs),
+        )
+        PC_block = sp.block_array(
+            [[M0, -K], [-K.T, None]], dtype=self.precision
+        ).tocsc()
+        self.PC = cholesky(PC_block)
 
     def apply_saddle(self, x: vector) -> np.ndarray:
         self.__check_input_size(system_input=x)
