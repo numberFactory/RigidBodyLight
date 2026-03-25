@@ -37,9 +37,12 @@ class RigidBody:
         kbt = 1.0  # TODO temp, do we need kbt in c_rigid at all?
 
         self.__check_configs(rigid_config, fixed_config)
+        self.fixed_config = (
+            np.array(fixed_config).flatten() if fixed_config is not None else None
+        )
 
         self.blobs_per_body = np.size(rigid_config) // 3
-        self.fixed_blobs = 0 if fixed_config is None else np.size(fixed_config) // 3
+        self.n_fixed = 0 if fixed_config is None else np.size(fixed_config) // 3
 
         self.cb.setParameters(a, dt, kbt, eta, rigid_config)
         self.cb.setBlkPC(block_PC)
@@ -61,12 +64,15 @@ class RigidBody:
         self.cb.setConfig(X, Q)
         self.cb.set_K_mats()
 
-        self.total_blobs = self.N_bodies * self.blobs_per_body + self.fixed_blobs
+        self.total_blobs = self.N_bodies * self.blobs_per_body + self.n_fixed
         self.__construct_K_mats()
 
     def get_blob_positions(self) -> np.ndarray:
         shape = (-1, 3) if len(self.X_shape) == 2 else (-1)
-        return np.array(self.cb.multi_body_pos()).reshape(shape)
+        pos = self.cb.multi_body_pos()
+        if self.fixed_config is not None:
+            pos = np.concatenate((pos, self.fixed_config.flatten()))
+        return np.reshape(pos, shape)
 
     def K_dot(self, U: vector) -> np.ndarray:
         self.__check_input_size(body_input=U)
@@ -76,13 +82,23 @@ class RigidBody:
 
     def KT_dot(self, lambda_vec: vector) -> np.ndarray:
         self.__check_input_size(blob_input=lambda_vec)
-        result = self.K_inv.dot(np.array(lambda_vec).ravel())
+        result = self.K.T.dot(np.array(lambda_vec).ravel())
         shape = (-1, 3) if np.ndim(lambda_vec) == 2 else (-1)
         return np.array(result).reshape(shape)
 
     def apply_PC(self, b: vector) -> np.ndarray:
         self.__check_input_size(system_input=b)
-        return self.cb.apply_PC(np.array(b))
+        if self.n_fixed > 0:
+            slice_ind = 3 * self.total_blobs - 3 * self.n_fixed
+            b = np.concatenate((b[0:slice_ind], b[3 * self.total_blobs :]))
+        # TODO this is wrong for fixed blobs
+        out = self.cb.apply_PC(np.array(b))
+
+        if self.n_fixed > 0:
+            out = np.concatenate(
+                (out[0:slice_ind], np.zeros(3 * self.n_fixed), out[slice_ind:])
+            )
+        return out
 
     def apply_saddle(self, x: vector) -> np.ndarray:
         self.__check_input_size(system_input=x)
@@ -98,8 +114,10 @@ class RigidBody:
     def apply_M(self, forces: vector, positions: vector) -> np.ndarray:
         if np.size(positions) != np.size(forces):
             raise RuntimeError("Positions and forces must be of the same size")
-        self.__check_input_size(blob_input=forces)
-        self.__check_input_size(blob_input=positions)
+        if np.size(forces) % 3 != 0:
+            raise RuntimeError("Forces vector size must be a multiple of 3")
+        if np.size(positions) % 3 != 0:
+            raise RuntimeError("Positions vector size must be a multiple of 3")
         shape = (-1, 3) if np.ndim(forces) == 2 and np.ndim(positions) == 2 else (-1)
 
         positions = np.array(positions).ravel()
@@ -124,12 +142,10 @@ class RigidBody:
         self.K = self.cb.get_K()
         self.K_inv = self.cb.get_Kinv()
 
-        if self.fixed_blobs > 0:
+        if self.n_fixed > 0:
             padded_shape = (3 * self.total_blobs, 6 * self.N_bodies)
             self.K.resize(padded_shape)
             self.K_inv.resize(padded_shape)
-            # self.K = sp.csc_matrix(self.K, shape=padded_shape)
-            # self.K_inv = sp.csc_matrix(self.K_inv, shape=padded_shape)
 
     def __check_configs(
         self, rigid_config: vector, fixed_config: vector | None
