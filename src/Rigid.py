@@ -126,7 +126,7 @@ class RigidBody:
             self.apply_M(forces=lambda_vec, positions=r_vecs) - self.K_dot(U).flatten()
         )
         F = self.KT_dot(lambda_vec).flatten()
-        return np.concatenate((slip, F))
+        return np.concatenate((slip, -F))
 
     def apply_M(self, forces: vector, positions: vector) -> np.ndarray:
         if np.size(positions) != np.size(forces):
