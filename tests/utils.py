@@ -4,6 +4,8 @@ import os
 
 struct_dir = os.path.dirname(os.path.abspath(__file__)) + "/../structures/"
 struct_shell_12 = struct_dir + "shell_N_12.csv"
+struct_shell_162 = struct_dir + "shell_N_162.csv"
+struct_shell_642 = struct_dir + "shell_N_642.csv"
 
 
 def load_config(file_name):
@@ -19,7 +21,16 @@ def load_config(file_name):
     return params, cfg
 
 
-def create_solver(X, Q, rigid_config=None, wall_PC=False, block_PC=False):
+def create_solver(
+    X,
+    Q,
+    rigid_config=None,
+    wall_PC=False,
+    block_PC=False,
+    fixed_config=None,
+    a=1.0,
+    eta=1.0,
+):
     if rigid_config is None:
         _, rigid_config = load_config(struct_shell_12)
 
@@ -27,11 +38,12 @@ def create_solver(X, Q, rigid_config=None, wall_PC=False, block_PC=False):
         rigid_config,
         X,
         Q,
-        a=1.0,
-        eta=1.0,
+        a=a,
+        eta=eta,
         dt=1.0,
         wall_PC=wall_PC,
         block_PC=block_PC,
+        fixed_config=fixed_config,
     )
 
 

@@ -1,8 +1,11 @@
 from Rigid import c_rigid as crigid
 import numpy as np
 from typing import TypeAlias
+import scipy.sparse as sp
+from sksparse.cholmod import cholesky
 
 vector: TypeAlias = list | np.ndarray
+sparse_m: TypeAlias = sp.csc_matrix
 """Rigid body interface for Python.
 
 Dev notes:
@@ -13,6 +16,8 @@ Dev notes:
 class RigidBody:
     X_shape: tuple[int, ...]
     Q_shape: tuple[int, ...]
+    K: sparse_m
+    K_inv: sparse_m
 
     def __init__(
         self,
@@ -22,6 +27,7 @@ class RigidBody:
         a: float,
         eta: float,
         dt: float,
+        fixed_config: vector | None = None,
         wall_PC=False,
         block_PC=False,
     ):
@@ -30,16 +36,21 @@ class RigidBody:
         self.using_wall = wall_PC
 
         kbt = 1.0  # TODO temp, do we need kbt in c_rigid at all?
+        self.eta = eta
+        self.a = a
 
-        if np.size(rigid_config) % 3 != 0:
-            raise RuntimeError(
-                f"Rigid config must have length 3N. Rigid config shape: {np.shape(rigid_config)}"
-            )
+        self.__check_configs(rigid_config, fixed_config)
+        self.fixed_config = (
+            np.array(fixed_config).flatten() if fixed_config is not None else None
+        )
+
         self.blobs_per_body = np.size(rigid_config) // 3
+        self.n_fixed = 0 if fixed_config is None else np.size(fixed_config) // 3
 
         self.cb.setParameters(a, dt, kbt, eta, rigid_config)
         self.cb.setBlkPC(block_PC)
         self.cb.setWallPC(wall_PC)
+        self.PC = None
 
         self.set_config(X, Q)
 
@@ -57,27 +68,55 @@ class RigidBody:
         self.cb.setConfig(X, Q)
         self.cb.set_K_mats()
 
-        self.total_blobs = self.N_bodies * self.blobs_per_body
+        self.total_blobs = self.N_bodies * self.blobs_per_body + self.n_fixed
+        self.__construct_K_mats()
 
     def get_blob_positions(self) -> np.ndarray:
         shape = (-1, 3) if len(self.X_shape) == 2 else (-1)
-        return np.array(self.cb.multi_body_pos()).reshape(shape)
+        pos = self.cb.multi_body_pos()
+        if self.fixed_config is not None:
+            pos = np.concatenate((pos, self.fixed_config.flatten()))
+        return np.reshape(pos, shape)
 
     def K_dot(self, U: vector) -> np.ndarray:
-        self.__check_input_size(U_vec=U)
-        result = self.cb.K_x_U(np.array(U).ravel())
+        self.__check_input_size(body_input=U)
+        result = self.K.dot(np.array(U).ravel())
         shape = (-1, 3) if np.ndim(U) == 2 else (-1)
-        return result.reshape(shape)
+        return np.array(result).reshape(shape)
 
     def KT_dot(self, lambda_vec: vector) -> np.ndarray:
-        self.__check_input_size(lambda_vec=lambda_vec)
-        result = self.cb.KT_x_Lam(np.array(lambda_vec).ravel())
+        self.__check_input_size(blob_input=lambda_vec)
+        result = self.K.T.dot(np.array(lambda_vec).ravel())
         shape = (-1, 3) if np.ndim(lambda_vec) == 2 else (-1)
-        return result.reshape(shape)
+        return np.array(result).reshape(shape)
 
     def apply_PC(self, b: vector) -> np.ndarray:
         self.__check_input_size(system_input=b)
-        return self.cb.apply_PC(np.array(b))
+        # note: currently a fixed config ignores wall_PC and block_PC
+        if self.fixed_config is not None:
+            out = self.apply_PC_diag(b)
+        else:
+            out = self.cb.apply_PC(np.array(b))
+        return out
+
+    def apply_PC_diag(self, b: vector) -> np.ndarray:
+        self.__check_input_size(system_input=b)
+        if self.PC is None:
+            self.build_block_PC()
+
+        test = self.PC.solve_A(np.array(b).ravel())
+        return test.astype(self.precision)
+
+    def build_block_PC(self):
+        K = self.get_K()
+        M0 = sp.diags(
+            [1 / (6 * np.pi * self.eta * self.a)] * 3 * self.total_blobs,
+            shape=(3 * self.total_blobs, 3 * self.total_blobs),
+        )
+        PC_block = sp.block_array(
+            [[M0, -K], [-K.T, None]], dtype=self.precision
+        ).tocsc()
+        self.PC = cholesky(PC_block)
 
     def apply_saddle(self, x: vector) -> np.ndarray:
         self.__check_input_size(system_input=x)
@@ -88,13 +127,16 @@ class RigidBody:
             self.apply_M(forces=lambda_vec, positions=r_vecs) - self.K_dot(U).flatten()
         )
         F = self.KT_dot(lambda_vec).flatten()
-        return np.concatenate((slip, F))
+        return np.concatenate((slip, -F))
 
     def apply_M(self, forces: vector, positions: vector) -> np.ndarray:
         if np.size(positions) != np.size(forces):
             raise RuntimeError("Positions and forces must be of the same size")
-        if np.size(forces) % 3 != 0 or np.size(positions) % 3 != 0:
-            raise RuntimeError("Forces and positions must have total size 3*N_blobs")
+        if np.size(forces) % 3 != 0:
+            raise RuntimeError("Forces vector size must be a multiple of 3")
+        if np.size(positions) % 3 != 0:
+            raise RuntimeError("Positions vector size must be a multiple of 3")
+        shape = (-1, 3) if np.ndim(forces) == 2 and np.ndim(positions) == 2 else (-1)
 
         positions = np.array(positions).ravel()
         if self.using_wall and np.any(positions[2::3] <= 0):
@@ -102,17 +144,39 @@ class RigidBody:
                 "Particle detected at or below wall (z <= 0) in apply_M. Either remove the wall or ensure all particles are above the wall."
             )
 
-        return self.cb.apply_M(np.reshape(forces, (-1)), np.reshape(positions, (-1)))
+        return self.cb.apply_M(np.reshape(forces, (-1)), positions).reshape(shape)
 
-    def get_K(self) -> np.ndarray:
-        return self.cb.get_K()
+    def get_K(self) -> sparse_m:
+        return self.K
 
-    def get_Kinv(self) -> np.ndarray:
-        return self.cb.get_Kinv()
+    def get_Kinv(self) -> sparse_m:
+        return self.K_inv
 
     def evolve_rigid_bodies(self, U: vector) -> None:
-        self.__check_input_size(U_vec=U)
+        self.__check_input_size(body_input=U)
         self.cb.evolve_X_Q(np.array(U).ravel())
+
+    def __construct_K_mats(self):
+        self.K = self.cb.get_K()
+        self.K_inv = self.cb.get_Kinv()
+
+        if self.n_fixed > 0:
+            padded_shape = (3 * self.total_blobs, 6 * self.N_bodies)
+            self.K.resize(padded_shape)
+            self.K_inv.resize(padded_shape)
+
+    def __check_configs(
+        self, rigid_config: vector, fixed_config: vector | None
+    ) -> None:
+        if np.size(rigid_config) % 3 != 0:
+            raise RuntimeError(
+                f"Rigid config must have length 3N. Rigid config size: {np.size(rigid_config)}"
+            )
+        if fixed_config is not None:
+            if np.size(fixed_config) % 3 != 0:
+                raise RuntimeError(
+                    f"Fixed config must have length 3N. Fixed config size: {np.size(fixed_config)}"
+                )
 
     def __check_and_set_configs(self, X: vector, Q: vector) -> None:
         x_size = np.prod(np.shape(X))
@@ -135,19 +199,19 @@ class RigidBody:
 
     def __check_input_size(
         self,
-        lambda_vec: vector | None = None,
-        U_vec: vector | None = None,
+        blob_input: vector | None = None,
+        body_input: vector | None = None,
         system_input: vector | None = None,
     ):
-        if lambda_vec is not None:
-            if np.size(lambda_vec) != 3 * self.total_blobs:
+        if blob_input is not None:
+            if np.size(blob_input) != 3 * self.total_blobs:
                 raise RuntimeError(
-                    f"lambda must have total size 3*N_blobs = {3 * self.total_blobs}. lambda_vec shape: {np.shape(lambda_vec)}"
+                    f"lambda must have total size 3*N_blobs = {3 * self.total_blobs}. lambda_vec shape: {np.shape(blob_input)}"
                 )
-        if U_vec is not None:
-            if np.size(U_vec) != 6 * self.N_bodies:
+        if body_input is not None:
+            if np.size(body_input) != 6 * self.N_bodies:
                 raise RuntimeError(
-                    f"U must have total size 6*N_bodies = {6*self.N_bodies}. U shape: {np.shape(U_vec)}"
+                    f"U must have total size 6*N_bodies = {6*self.N_bodies}. U shape: {np.shape(body_input)}"
                 )
 
         if system_input is not None:
