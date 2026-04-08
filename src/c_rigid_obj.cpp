@@ -167,10 +167,10 @@ class CManyBodies {
   SparseM K, KT, Kinv;
 
 public:
-#ifdef SINGLE_PRECISION
-  static constexpr auto precision = "single";
-#else
+#ifdef DOUBLE_PRECISION
   static constexpr auto precision = "double";
+#else
+  static constexpr auto precision = "single";
 #endif
 
   void removeMean(Matrix &cfg) {
