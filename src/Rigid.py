@@ -27,6 +27,7 @@ class RigidBody:
     ):
         self.cb = crigid.CManyBodies()
         self.precision = self.cb.precision
+        self.using_wall = wall_PC
 
         kbt = 1.0  # TODO temp, do we need kbt in c_rigid at all?
 
@@ -94,6 +95,12 @@ class RigidBody:
             raise RuntimeError("Positions and forces must be of the same size")
         if np.size(forces) % 3 != 0 or np.size(positions) % 3 != 0:
             raise RuntimeError("Forces and positions must have total size 3*N_blobs")
+
+        positions = np.array(positions).ravel()
+        if self.using_wall and np.any(positions[2::3] <= 0):
+            raise RuntimeError(
+                "Particle detected at or below wall (z <= 0) in apply_M. Either remove the wall or ensure all particles are above the wall."
+            )
 
         return self.cb.apply_M(np.reshape(forces, (-1)), np.reshape(positions, (-1)))
 

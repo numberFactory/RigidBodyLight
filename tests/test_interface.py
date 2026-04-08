@@ -212,6 +212,21 @@ def test_apply_M(vector_type, flat_inputs):
     assert np.linalg.norm(result_long) > 0.0
 
 
+# check that apply_M throws an error if there is a wall and any of the z-positions are below it (<= 0)
+def test_apply_M_with_wall():
+    N_rigid = 2
+    X = np.array([[-2.0, 0.0, 1.5], [2.0, 0.0, 0.5]])
+    Q = np.array([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]])
+    _, config = utils.load_config(utils.struct_shell_12)
+    cb = utils.create_solver(rigid_config=config, X=X, Q=Q, wall_PC=True)
+    blobs_per_body = config.shape[0]
+
+    F = np.random.randn(3 * blobs_per_body * N_rigid)
+    pos = cb.get_blob_positions()
+    with pytest.raises(RuntimeError):
+        cb.apply_M(F, pos)
+
+
 @pytest.mark.parametrize("vector_type", (list, np.array))
 def test_apply_saddle(vector_type):
     N_rigid = 2
