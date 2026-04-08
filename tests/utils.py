@@ -22,7 +22,14 @@ def load_config(file_name):
 
 
 def create_solver(
-    X, Q, rigid_config=None, wall_PC=False, block_PC=False, fixed_config=None
+    X,
+    Q,
+    rigid_config=None,
+    wall_PC=False,
+    block_PC=False,
+    fixed_config=None,
+    a=1.0,
+    eta=1.0,
 ):
     if rigid_config is None:
         _, rigid_config = load_config(struct_shell_12)
@@ -31,8 +38,8 @@ def create_solver(
         rigid_config,
         X,
         Q,
-        a=1.0,
-        eta=1.0,
+        a=a,
+        eta=eta,
         dt=1.0,
         wall_PC=wall_PC,
         block_PC=block_PC,
