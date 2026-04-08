@@ -1,14 +1,11 @@
 import numpy as np
-from Rigid import RigidBody
-import scipy.sparse as sp
 import utils
-import time
 from pyamg.krylov import gmres
 from scipy.sparse.linalg import LinearOperator
-from scipy.spatial.distance import pdist
 
 
 # solve the system with fixed blobs and check that the velocity of the fixed blobs is close to zero.
+# the configuration is two multiblob particles with a (fixed) wall between them
 def test_apply_with_fixed():
     X = np.array([[-2.0, 0.0, 1.5], [2.0, 0.0, 1.5]])
     Q = np.array([[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]])
@@ -34,7 +31,6 @@ def test_apply_with_fixed():
     RHS = np.random.rand(sz).astype(cb.precision)
     RHS[3 * len(config) : 3 * cb.total_blobs] = 0.0
     RHS_norm = np.linalg.norm(RHS)
-    print("precision:", cb.precision)
 
     A = LinearOperator(shape=(sz, sz), matvec=cb.apply_saddle, dtype=cb.precision)
     PC = LinearOperator(shape=(sz, sz), matvec=cb.apply_PC, dtype=cb.precision)
