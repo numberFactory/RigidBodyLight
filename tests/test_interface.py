@@ -155,11 +155,8 @@ def test_get_K_Kinv():
     _, config = utils.load_config(utils.struct_shell_12)
     cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
 
-    K = np.array(cb.get_K())
-    K_inv = np.array(cb.get_Kinv())
-
-    assert np.sum(np.abs(K)) > 0.0
-    assert np.sum(np.abs(K_inv)) > 0.0
+    assert np.sum(cb.get_K()) > 0.0
+    assert np.sum(cb.get_Kinv()) > 0.0
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))

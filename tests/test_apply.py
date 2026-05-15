@@ -36,7 +36,7 @@ def test_apply_with_fixed():
     PC = LinearOperator(shape=(sz, sz), matvec=cb.apply_PC, dtype=cb.precision)
     tol = 1e-4
     res_norms = []
-    (sol, _) = gmres(
+    sol, _ = gmres(
         A,
         (RHS / RHS_norm),
         M=PC,
@@ -50,6 +50,6 @@ def test_apply_with_fixed():
 
     v = cb.apply_M(lambda_vec, cb.get_blob_positions())
 
-    v_fixed = v[3 * cb.blobs_per_body * cb.N_bodies :]
+    v_fixed = v[3 * cb.blobs_per_rigid_body * cb.N_bodies :]
     mob_fact = 6 * np.pi * cb.eta * cb.a
     assert np.all(np.abs(v_fixed) < 10 * tol / mob_fact)

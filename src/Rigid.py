@@ -44,7 +44,7 @@ class RigidBody:
             np.array(fixed_config).flatten() if fixed_config is not None else None
         )
 
-        self.blobs_per_body = np.size(rigid_config) // 3
+        self.blobs_per_rigid_body = np.size(rigid_config) // 3
         self.n_fixed = 0 if fixed_config is None else np.size(fixed_config) // 3
 
         self.cb.setParameters(a, dt, kbt, eta, rigid_config)
@@ -68,7 +68,7 @@ class RigidBody:
         self.cb.setConfig(X, Q)
         self.cb.set_K_mats()
 
-        self.total_blobs = self.N_bodies * self.blobs_per_body + self.n_fixed
+        self.total_blobs = self.N_bodies * self.blobs_per_rigid_body + self.n_fixed
         self.__construct_K_mats()
 
     def get_blob_positions(self) -> np.ndarray:
