@@ -62,70 +62,91 @@ def test_blob_positions():
     X, Q = utils.create_random_positions(N)
     _, config = utils.load_config(utils.struct_shell_12)
     blobs_per_body = config.shape[0]
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
+    n_fixed = 3
+    fixed_config = np.random.uniform(0, 1, (n_fixed, 3))
+    cb = utils.create_solver(rigid_config=config, X=X, Q=Q, fixed_config=fixed_config)
 
-    N_blobs = N * blobs_per_body
+    n_blobs = N * blobs_per_body + n_fixed
     pos = cb.get_blob_positions()
-    assert pos.shape == (N_blobs, 3)
+    assert pos.shape == (n_blobs, 3)
 
-    ref_pos = np.zeros((N_blobs, 3))
+    ref_pos = np.zeros((n_blobs, 3))
     for i in range(N):
         x_i = X[i, :]
         r_i = Rotation.from_quat(Q[i, :], scalar_first=True)
         pos_i = r_i.apply(config.copy()) + x_i
         ref_pos[i * blobs_per_body : (i + 1) * blobs_per_body, :] = pos_i
+    ref_pos[N * blobs_per_body :, :] = fixed_config
 
     assert np.allclose(pos, ref_pos, atol=1e-5)
 
 
+@pytest.mark.parametrize(
+    ("block_PC", "wall_PC"),
+    ((False, False), (True, False), (False, True), (True, True)),
+)
 @pytest.mark.parametrize("vector_type", (list, np.array))
-@pytest.mark.parametrize("flat_inputs", [False, True])
-def test_K_dot(vector_type, flat_inputs):
+@pytest.mark.parametrize("flat_inputs", [True, False])
+@pytest.mark.parametrize("include_fixed", [True, False])
+def test_operator_shapes(block_PC, wall_PC, vector_type, flat_inputs, include_fixed):
     N_rigid = 3
-    X, Q = utils.create_random_positions(N_rigid)
+    X, Q = utils.create_random_positions(N_rigid, wall_PC=wall_PC)
     _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
+    n_fixed = 3 if include_fixed else 0
+    fixed_config = np.random.uniform(0, 1, (n_fixed, 3)) if include_fixed else None
+    cb = utils.create_solver(
+        rigid_config=config,
+        X=X,
+        Q=Q,
+        fixed_config=fixed_config,
+        block_PC=block_PC,
+        wall_PC=wall_PC,
+    )
     blobs_per_body = config.shape[0]
 
-    U_bad_size = vector_type(np.random.randn(6 * N_rigid - 3))
-    with pytest.raises(RuntimeError):
-        cb.K_dot(U_bad_size)
+    blob_vec = np.random.uniform(1, 10, 3 * (blobs_per_body * N_rigid + n_fixed))
+    M_pos = lambda pos: cb.apply_M(blob_vec, pos)
+    M_force = lambda force: cb.apply_M(force, blob_vec)
 
-    U_vec = np.random.randn(6 * N_rigid)
-    if flat_inputs:
-        out_shape = (3 * blobs_per_body * N_rigid,)
-    else:
-        U_vec = np.reshape(U_vec, (-1, 6))
-        out_shape = (blobs_per_body * N_rigid, 3)
+    funcs_to_input = {
+        cb.K_dot: {"input_type": "body", "output_type": "blob"},
+        cb.KT_dot: {"input_type": "blob", "output_type": "body"},
+        cb.apply_PC: {"input_type": "system", "output_type": "system"},
+        cb.apply_saddle: {"input_type": "system", "output_type": "system"},
+        M_pos: {"input_type": "blob", "output_type": "blob"},
+        M_force: {"input_type": "blob", "output_type": "blob"},
+    }
+    type_mapping = {
+        "body": 6 * N_rigid,
+        "blob": 3 * (blobs_per_body * N_rigid + n_fixed),
+        "system": 3 * (blobs_per_body * N_rigid + n_fixed) + 6 * N_rigid,
+    }
+    for func, types in funcs_to_input.items():
+        in_size = type_mapping[types["input_type"]]
+        out_size = type_mapping[types["output_type"]]
 
-    result = cb.K_dot(vector_type(U_vec))
-    assert result.shape == out_shape
-    assert np.linalg.norm(result) > 0.0
+        input_vec = np.random.uniform(1, 10, in_size)
+        if not flat_inputs:
+            if types["input_type"] != "system":
+                input_vec = np.reshape(input_vec, (-1, 3))
+            if types["output_type"] != "system":
+                out_shape = (out_size // 3, 3)
+            else:
+                out_shape = (out_size,)
+        else:
+            out_shape = (out_size,)
+        blob_vec = np.reshape(blob_vec, (-1, 3)) if not flat_inputs else blob_vec
 
+        result = func(vector_type(input_vec))
+        fail_msg = "func: {}, expected output shape: {}, got shape: {}".format(
+            func.__name__, out_shape, np.shape(result)
+        )
+        assert np.shape(result) == out_shape, fail_msg
+        assert np.linalg.norm(result) > 0.0
 
-@pytest.mark.parametrize("vector_type", (list, np.array))
-@pytest.mark.parametrize("flat_inputs", [False, True])
-def test_KT_dot(vector_type, flat_inputs):
-    N_rigid = 3
-    X, Q = utils.create_random_positions(N_rigid)
-    _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
-    blobs_per_body = config.shape[0]
-
-    lambda_bad_size = vector_type(np.random.randn(3 * blobs_per_body * N_rigid - 5))
-    with pytest.raises(RuntimeError):
-        cb.KT_dot(lambda_bad_size)
-
-    lambda_vec = np.random.randn(3 * blobs_per_body * N_rigid)
-    if flat_inputs:
-        out_shape = (6 * N_rigid,)
-    else:
-        lambda_vec = np.reshape(lambda_vec, (-1, 3))
-        out_shape = (2 * N_rigid, 3)
-    result = cb.KT_dot(vector_type(lambda_vec))
-    print("result shape:", (result.shape), "lambda_vec shape:", np.shape(lambda_vec))
-    assert result.shape == out_shape
-    assert np.linalg.norm(result) > 0.0
+        input_bad = input_vec[:-2]
+        with pytest.raises(RuntimeError):
+            func(vector_type(input_bad))
 
 
 def test_get_K_Kinv():
@@ -134,40 +155,8 @@ def test_get_K_Kinv():
     _, config = utils.load_config(utils.struct_shell_12)
     cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
 
-    K = cb.get_K()
-    K_inv = cb.get_Kinv()
-
-    assert np.sum(np.abs(K)) > 0.0
-    assert np.sum(np.abs(K_inv)) > 0.0
-
-
-@pytest.mark.parametrize(
-    ("block_PC", "wall_PC"),
-    ((False, False), (True, False), (False, True), (True, True)),
-)
-@pytest.mark.parametrize("vector_type", (list, np.array))
-def test_apply_PC(block_PC, wall_PC, vector_type):
-    N_rigid = 3
-    X, Q = utils.create_random_positions(N_rigid, wall_PC=wall_PC)
-    _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(
-        rigid_config=config, X=X, Q=Q, block_PC=block_PC, wall_PC=wall_PC
-    )
-    blobs_per_body = config.shape[0]
-
-    size = 3 * blobs_per_body * N_rigid + 6 * N_rigid
-    b = np.random.randn(size)
-    PC = cb.apply_PC(vector_type(b))
-
-    assert PC.shape == (size,)
-    assert np.linalg.norm(PC) > 0.0
-
-    with pytest.raises(RuntimeError):
-        b_bad_size = np.random.randn(size - 4)
-        cb.apply_PC(vector_type(b_bad_size))
-    with pytest.raises(RuntimeError):
-        b_bad_shape = np.random.randn(size).reshape(-1, 3)
-        cb.apply_PC(vector_type(b_bad_shape))
+    assert np.sum(cb.get_K()) > 0.0
+    assert np.sum(cb.get_Kinv()) > 0.0
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))
@@ -199,15 +188,24 @@ def test_apply_M(vector_type, flat_inputs):
         pos = np.reshape(pos, (-1, 3))
     print(type(F))
     result = cb.apply_M(vector_type(F), vector_type(pos))
-    shape = (3 * blobs_per_body * N_rigid,)
+    shape = (
+        (3 * blobs_per_body * N_rigid,)
+        if flat_inputs
+        else (blobs_per_body * N_rigid, 3)
+    )
     assert result.shape == shape
     assert np.linalg.norm(result) > 0.0
 
     # check that we can also apply to a longer vector (e.g., if we have extra blobs)
-    F = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3))
-    pos = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3))
+    shape = (
+        (3 * blobs_per_body * N_rigid + 3,)
+        if flat_inputs
+        else ((blobs_per_body * N_rigid + 1), 3)
+    )
+    F = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3).reshape(shape))
+    pos = vector_type(np.random.randn(3 * blobs_per_body * N_rigid + 3).reshape(shape))
     result_long = cb.apply_M(F, pos)
-    shape = (3 * blobs_per_body * N_rigid + 3,)
+
     assert result_long.shape == shape
     assert np.linalg.norm(result_long) > 0.0
 
@@ -225,30 +223,6 @@ def test_apply_M_with_wall():
     pos = cb.get_blob_positions()
     with pytest.raises(RuntimeError):
         cb.apply_M(F, pos)
-
-
-@pytest.mark.parametrize("vector_type", (list, np.array))
-def test_apply_saddle(vector_type):
-    N_rigid = 2
-    X, Q = utils.create_random_positions(N_rigid)
-    _, config = utils.load_config(utils.struct_shell_12)
-    cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
-    blobs_per_body = config.shape[0]
-
-    size = 3 * blobs_per_body * N_rigid + 6 * N_rigid
-    x = np.random.randn(size)
-
-    out = cb.apply_saddle(x)
-    assert out.shape == (size,)
-    assert np.linalg.norm(out) > 0.0
-
-    x_bad_size = np.random.randn(size - 2)
-    with pytest.raises(RuntimeError):
-        cb.apply_saddle(x_bad_size)
-
-    x_bad_shape = np.random.randn(size).reshape(-1, 3)
-    with pytest.raises(RuntimeError):
-        cb.apply_saddle(vector_type(x_bad_shape))
 
 
 @pytest.mark.parametrize("vector_type", (list, np.array))

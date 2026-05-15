@@ -13,7 +13,7 @@ def test_precision(precision):
     cb = utils.create_solver(X, Q)
     cb.set_config(X, Q)
 
-    N_per = cb.blobs_per_body
+    N_per = cb.blobs_per_rigid_body
     N_blobs = N_rigid * N_per
 
     U = np.random.randn(6 * N_rigid).astype(precision)
@@ -37,7 +37,7 @@ def test_pc_precision(precision, block_PC, wall_PC):
     Q = np.array(Q, dtype=precision)
     cb = utils.create_solver(X, Q, block_PC=block_PC, wall_PC=wall_PC)
 
-    size = 3 * cb.blobs_per_body * N_rigid + 6 * N_rigid
+    size = 3 * cb.blobs_per_rigid_body * N_rigid + 6 * N_rigid
     x = np.random.randn(size).astype(precision)
     PC = cb.apply_PC(x)
 
