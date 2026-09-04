@@ -32,36 +32,6 @@ jobs:
           show-channel-urls: true
           conda-remove-defaults: true
 
-      - name: Diagnose conda
-        shell: bash -el {0}
-        run: |
-          echo "PATH:"
-          echo "$PATH"
-          echo
-          echo "CONDA:"
-          echo "$CONDA"
-          echo
-          echo "which conda:"
-          which conda
-          echo
-          echo "conda version:"
-          conda --version
-          echo
-          echo "conda info:"
-          conda info
-          echo
-          echo "conda list:"
-          conda list
-          echo
-          echo "which conda-build:"
-          which conda-build || true
-          echo
-          echo "conda-build version:"
-          conda-build --version || true
-          echo
-          echo "conda build version:"
-          conda build --version || true
-
       - name: Build and upload the conda packages
         uses: uibcdf/action-build-and-upload-conda-packages@v2.0.3
         with:

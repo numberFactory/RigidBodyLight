@@ -3,4 +3,5 @@ channels:
   - conda-forge
 dependencies:
   - anaconda-client
-  - conda-build
+  - conda=25.11.1
+  - conda-build=25.11.1
