@@ -15,4 +15,3 @@ dependencies:
   - scikit-sparse
   # development dependencies
   - clangdev
-  - conda-build
