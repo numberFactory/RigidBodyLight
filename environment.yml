@@ -12,7 +12,7 @@ dependencies:
   - eigen
   - pytest
   - cmake
-  - scikit-sparse
+  - scikit-sparse>=0.5
   # development dependencies
   - clangdev
   - rattler-build
