@@ -1,6 +1,7 @@
 .cache/
 .vscode/
 __pycache__/
+recipe/output/
 build/*
 compile_commands.json
 *.egg-info/
