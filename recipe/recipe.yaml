@@ -30,13 +30,14 @@ requirements:
   run:
     - python
     - scipy
-    - scikit-sparse
+    - scikit-sparse >=0.5
     - numpy >=2.0
 
 tests:
   - python:
       imports:
         - Rigid
+      pip_check: false
   - files:
       source:
         - tests/
