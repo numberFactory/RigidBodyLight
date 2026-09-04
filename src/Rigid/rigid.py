@@ -1,8 +1,10 @@
-from Rigid import c_rigid
-import numpy as np
 from typing import TypeAlias
+
+import numpy as np
 import scipy.sparse as sp
-from sksparse.cholmod import cholesky
+from sksparse.cholmod import ldl_factor
+
+from Rigid import c_rigid
 
 vector: TypeAlias = list | np.ndarray
 sparse_m: TypeAlias = sp.csc_matrix
@@ -104,7 +106,7 @@ class RigidBody:
         if self.PC is None:
             self.build_block_PC()
 
-        test = self.PC.solve_A(np.array(b).ravel())
+        test = self.PC.solve(np.array(b, dtype=self.precision).ravel())
         return test.astype(self.precision)
 
     def build_block_PC(self):
@@ -116,7 +118,7 @@ class RigidBody:
         PC_block = sp.block_array(
             [[M0, -K], [-K.T, None]], dtype=self.precision
         ).tocsc()
-        self.PC = cholesky(PC_block)
+        self.PC = ldl_factor(PC_block)
 
     def apply_saddle(self, x: vector) -> np.ndarray:
         self.__check_input_size(system_input=x)
@@ -211,7 +213,7 @@ class RigidBody:
         if body_input is not None:
             if np.size(body_input) != 6 * self.N_bodies:
                 raise RuntimeError(
-                    f"U must have total size 6*N_bodies = {6*self.N_bodies}. U shape: {np.shape(body_input)}"
+                    f"U must have total size 6*N_bodies = {6 * self.N_bodies}. U shape: {np.shape(body_input)}"
                 )
 
         if system_input is not None:

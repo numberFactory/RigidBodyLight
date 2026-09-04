@@ -1,1 +1,1 @@
-from .Rigid import RigidBody
+from .rigid import RigidBody
