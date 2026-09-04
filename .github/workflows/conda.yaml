@@ -26,24 +26,9 @@ jobs:
           auto-activate-base: false
           show-channel-urls: true
           conda-remove-defaults: "true"
-      - name: Enforce .tar.bz2 packages
-        # Temporary work-arounds while the action uibcdf/action-build-and-upload-conda-packages gets updated:
-        # We create a `~/.condarc` file with the correct options to enforce the use of `.tar.bz2` packages
-        # and we set the channels to be used by conda build
-        shell: bash
-        run: |
-          cat > ~/.condarc << EOF
-          conda-build:
-            pkg_format: .tar.bz2
-          channels:
-            - conda-forge
-            - nodefaults
-          
-          EOF
+
       - name: Build and upload the conda packages
-        uses: uibcdf/action-build-and-upload-conda-packages@v1.4.0
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
+        uses: uibcdf/action-build-and-upload-conda-packages@v2.0.3
         with:
           meta_yaml_dir: recipe
           python-version: ${{ matrix.python-version }}
