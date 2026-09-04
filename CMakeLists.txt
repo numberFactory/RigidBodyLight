@@ -17,11 +17,11 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE nanobind_DIR)
 find_package(nanobind CONFIG REQUIRED)
 
-set(SOURCES src/c_rigid_obj.cpp)
+set(SOURCES src/c_rigid/c_rigid_obj.cpp)
 nanobind_add_module(c_rigid ${SOURCES})
 target_link_libraries(c_rigid PRIVATE Eigen3::Eigen)
 target_compile_options(c_rigid PRIVATE -fPIC -Wall)
-install(TARGETS c_rigid DESTINATION ${Python_SITEARCH}/Rigid)
+install(TARGETS c_rigid DESTINATION Rigid)
 
-file(GLOB PYTHON_SOURCES src/*.py)
-install(FILES ${PYTHON_SOURCES} DESTINATION ${Python_SITEARCH}/Rigid)
+file(GLOB PYTHON_SOURCES src/Rigid/*.py)
+install(FILES ${PYTHON_SOURCES} DESTINATION Rigid)

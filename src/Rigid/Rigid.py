@@ -1,4 +1,4 @@
-from Rigid import c_rigid as crigid
+from Rigid import c_rigid
 import numpy as np
 from typing import TypeAlias
 import scipy.sparse as sp
@@ -31,7 +31,7 @@ class RigidBody:
         wall_PC=False,
         block_PC=False,
     ):
-        self.cb = crigid.CManyBodies()
+        self.cb = c_rigid.CManyBodies()
         self.precision = self.cb.precision
         self.using_wall = wall_PC
 

@@ -1,0 +1,58 @@
+context:
+  repo_url: https://github.com/numberFactory/RigidBodyLight
+  latest_tag: ${{  git.latest_tag( repo_url )  }}
+
+package:
+  name: rigidbodylight
+  version: ${{ latest_tag }}
+source:
+  git: ${{ repo_url }}
+  tag: ${{ latest_tag }}
+
+build:
+  number: 0
+  script: $PYTHON -m pip install . -vv
+
+requirements:
+  build:
+    - ${{ compiler('cxx') }}
+    - cmake >=3.19
+    - make
+    - nanobind
+    - eigen
+  host:
+    - python
+    - scikit-build-core
+    - pip
+    - numpy >=2.0
+    - nanobind
+    - eigen
+  run:
+    - python
+    - scipy
+    - scikit-sparse
+    - numpy >=2.0
+
+tests:
+  - python:
+      imports:
+        - Rigid
+  - files:
+      source:
+        - tests/
+        - structures/
+    requirements:
+      run:
+        - pytest
+        - pyamg
+    script:
+      - pytest
+
+about:
+  license_file: LICENSE
+  summary: A lightweight code for fluctuating rigid body dynamics at the Brownian scale.
+  homepage: https://github.com/numberFactory/RigidBodyLight
+
+extra:
+  recipe-maintainers:
+    - rykerfish
