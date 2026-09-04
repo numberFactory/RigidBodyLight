@@ -1,0 +1,49 @@
+name: Package
+
+on:
+  release:
+    types: ["released"]
+  workflow_dispatch: # used to trigger manually
+  pull_request:
+
+jobs:
+  build:
+    name: Build package
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set package version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="0.0.0.dev${{ github.run_number }}"
+          fi
+
+          echo "PACKAGE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "Building version ${VERSION}"
+
+      - name: Build conda package
+        uses: prefix-dev/rattler-build-action@v0.2.39
+        with:
+          artifact-name: rigidbodylight-${{ matrix.target-platform }}
+
+      - name: Upload package
+        if: github.event_name == 'release'
+        run: |
+          for pkg in $(find output -type f \( -name "*.conda" -o -name "*.tar.bz2" \) ); do
+            echo "Uploading ${pkg}"
+            rattler-build upload anaconda "${pkg}"
+          done
+        env:
+          ANACONDA_OWNER: StochasticHydroTools
+          ANACONDA_CHANNEL: main
+          ANACONDA_API_KEY: ${{ secrets.ANACONDA_TOKEN }}

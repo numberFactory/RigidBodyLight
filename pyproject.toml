@@ -1,13 +1,17 @@
 [build-system]
 requires = [
-    "scikit-build-core>=0.5.0",
+    "scikit-build-core>=1.0",
     "nanobind>=2.0",
+    "setuptools-scm",
 ]
 build-backend = "scikit_build_core.build"
 
+[tool.scikit-build.env]
+CMAKE_BUILD_PARALLEL_LEVEL = { env = "MAX_JOBS", default = "4" }
+
 [project]
 name = "RigidBodyLight"
-version = "0.4.0"
+dynamic = ["version"]
 description = "Rigid body simulation with nanobind"
 requires-python = ">=3.10"
 dependencies = [
@@ -16,6 +20,9 @@ dependencies = [
     "scikit-sparse>=0.5",
     "pyamg",
 ]
+
+[[tool.dynamic-metadata]]
+provider = "scikit_build_core.metadata.setuptools_scm"
 
 [tool.scikit-build.cmake.define]
 DOUBLEPRECISION = 0
