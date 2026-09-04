@@ -10,6 +10,12 @@ name = "RigidBodyLight"
 version = "0.4.0"
 description = "Rigid body simulation with nanobind"
 requires-python = ">=3.10"
+dependencies = [
+    "numpy>=2.0",
+    "scipy",
+    "scikit-sparse>=0.5",
+    "pyamg",
+]
 
 [tool.scikit-build.cmake.define]
 DOUBLEPRECISION = 0
