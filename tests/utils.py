@@ -1,6 +1,8 @@
-import numpy as np
-from Rigid import RigidBody
 import os
+
+import numpy as np
+
+from Rigid import RigidBody
 
 struct_dir = os.path.dirname(os.path.abspath(__file__)) + "/../structures/"
 struct_shell_12 = struct_dir + "shell_N_12.csv"

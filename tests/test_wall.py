@@ -1,7 +1,6 @@
-from Rigid import RigidBody
 import numpy as np
-import utils
 import pytest
+import utils
 
 
 def test_above_wall():

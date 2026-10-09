@@ -1,7 +1,6 @@
-from Rigid import RigidBody
 import numpy as np
-import utils
 import pytest
+import utils
 
 
 @pytest.mark.parametrize("precision", [np.float32, np.float64])

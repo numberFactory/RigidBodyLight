@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
-from Rigid import RigidBody
-from scipy.spatial.transform import Rotation
 import utils
+from scipy.spatial.transform import Rotation
+
+from Rigid import RigidBody
 
 
 def test_create():
@@ -14,13 +15,13 @@ def test_create():
     X = np.random.randn(N, 3)
     Q = np.random.randn(N, 4)
 
-    cb = RigidBody(config, X, Q, a, eta, dt=0.01)
-    cb = RigidBody(config, X, Q, a, eta, dt=0.01, wall_PC=True)
-    cb = RigidBody(config, X, Q, a, eta, dt=0.01, block_PC=True)
+    RigidBody(config, X, Q, a, eta, dt=0.01)
+    RigidBody(config, X, Q, a, eta, dt=0.01, wall_PC=True)
+    RigidBody(config, X, Q, a, eta, dt=0.01, block_PC=True)
 
     with pytest.raises(RuntimeError):
         config = config.flatten()[:-1]
-        cb = RigidBody(config, X, Q, a, eta, dt=0.01)
+        RigidBody(config, X, Q, a, eta, dt=0.01)
 
 
 @pytest.mark.parametrize(
@@ -138,9 +139,7 @@ def test_operator_shapes(block_PC, wall_PC, vector_type, flat_inputs, include_fi
         blob_vec = np.reshape(blob_vec, (-1, 3)) if not flat_inputs else blob_vec
 
         result = func(vector_type(input_vec))
-        fail_msg = "func: {}, expected output shape: {}, got shape: {}".format(
-            func.__name__, out_shape, np.shape(result)
-        )
+        fail_msg = f"func: {func.__name__}, expected output shape: {out_shape}, got shape: {np.shape(result)}"
         assert np.shape(result) == out_shape, fail_msg
         assert np.linalg.norm(result) > 0.0
 
