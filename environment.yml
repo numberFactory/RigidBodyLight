@@ -2,6 +2,7 @@ name: rigid
 channels:
   - conda-forge
 dependencies:
+  - python
   - scipy
   - numpy
   - pyamg

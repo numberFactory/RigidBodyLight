@@ -4,7 +4,6 @@ on:
   release:
     types: ["released"]
   workflow_dispatch: # used to trigger manually
-  pull_request:
 
 jobs:
   build:
@@ -34,7 +33,7 @@ jobs:
       - name: Build conda package
         uses: prefix-dev/rattler-build-action@v0.2.39
         with:
-          artifact-name: rigidbodylight-${{ matrix.target-platform }}
+          artifact-name: rigidbodylight-${{ matrix.os }}
 
       - name: Upload package
         if: github.event_name == 'release'
