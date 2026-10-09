@@ -224,6 +224,7 @@ def test_apply_M_with_wall():
         cb.apply_M(F, pos)
 
 
+# we test both for sane inputs and that both the positions and K mats change
 @pytest.mark.parametrize("vector_type", (list, np.array))
 @pytest.mark.parametrize("flat_inputs", [False, True])
 def test_evolve_rigid_bodies(vector_type, flat_inputs):
@@ -231,6 +232,8 @@ def test_evolve_rigid_bodies(vector_type, flat_inputs):
     X, Q = utils.create_random_positions(N_rigid)
     _, config = utils.load_config(utils.struct_shell_12)
     cb = utils.create_solver(rigid_config=config, X=X, Q=Q)
+    K0 = cb.get_K()
+    K0_inv = cb.get_Kinv()
 
     U = np.random.randn(6 * N_rigid)
     if not flat_inputs:
@@ -238,6 +241,10 @@ def test_evolve_rigid_bodies(vector_type, flat_inputs):
     cb.evolve_rigid_bodies(vector_type(U))
 
     X_new, Q_new = cb.get_config()
+    K1 = cb.get_K()
+    K1_inv = cb.get_Kinv()
 
     assert np.linalg.norm(X_new - X) > 0.0
     assert np.linalg.norm(Q_new - Q) > 0.0
+    assert (K1 - K0).nnz > 0
+    assert (K1_inv - K0_inv).nnz > 0
