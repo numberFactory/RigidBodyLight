@@ -71,7 +71,7 @@ class RigidBody:
         self.cb.set_K_mats()
 
         self.total_blobs = self.N_bodies * self.blobs_per_rigid_body + self.n_fixed
-        self.__construct_K_mats()
+        self.__update_local_K_mats()
 
     def get_blob_positions(self) -> np.ndarray:
         shape = (-1, 3) if len(self.X_shape) == 2 else (-1)
@@ -157,8 +157,9 @@ class RigidBody:
     def evolve_rigid_bodies(self, U: Vector) -> None:
         self.__check_input_size(body_input=U)
         self.cb.evolve_X_Q(np.array(U).ravel())
+        self.__update_local_K_mats()
 
-    def __construct_K_mats(self):
+    def __update_local_K_mats(self):
         self.K = self.cb.get_K()
         self.K_inv = self.cb.get_Kinv()
 
