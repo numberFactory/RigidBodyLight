@@ -4,6 +4,9 @@ on:
   release:
     types: ["released"]
   workflow_dispatch: # used to trigger manually
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
