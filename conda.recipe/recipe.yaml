@@ -27,9 +27,11 @@ requirements:
     - numpy >=2.0
     - nanobind
     - eigen
+    - suitesparse
   run:
     - python
     - scipy
+    - suitesparse
     - scikit-sparse >=0.5
     - numpy >=2.0
 
